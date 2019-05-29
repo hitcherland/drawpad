@@ -9,7 +9,11 @@
   },
   "dependencies": {
     "core-js": "^2.6.5",
-    "vue": "^2.6.10"
+    "konva": "^3.3.0",
+    "vue": "^2.6.10",
+    "vue-headful": "^2.0.1",
+    "vue-konva": "^2.0.6",
+    "vue-swatches": "^1.0.3"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^3.8.0",
