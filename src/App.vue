@@ -7,8 +7,8 @@
                  @mousemove="keepDrawing"
                  @mouseup="stopDrawing">
             <v-layer>
-                <v-circle :config="configCircle"></v-circle>
                 <v-path v-for="item in paths" :key="item.id" :config="item"></v-path>
+                <v-circle :config="configCircle"></v-circle>
             </v-layer>
         </v-stage>
         <div class="top-right">
@@ -36,10 +36,10 @@ export default {
             configCircle: {
                 x: 100,
                 y: 100,
-                radius: 10,
+                radius: 5,
                 fill: "#ffffff",
                 stroke: "#000000",
-                strokeWidth: 4
+                strokeWidth: 1
             },
         };
     },
@@ -60,8 +60,6 @@ export default {
         },
         startDrawing(e) {
             this.is_drawing=true;
-            this.configCircle.x = e.evt.pageX;
-            this.configCircle.y = e.evt.pageY;
             this.activePath = {
                 x: e.evt.pageX, y: e.evt.pageY,
                 data: 'M0,0',
@@ -73,16 +71,14 @@ export default {
             this.paths.push(this.activePath);
         },
         keepDrawing(e) {
-            if(!this.is_drawing)
-                return;
             this.configCircle.x = e.evt.pageX;
             this.configCircle.y = e.evt.pageY;
+            if(!this.is_drawing)
+                return;
             this.activePath.data += 'L' + (e.evt.pageX - this.activePath.__initial__[0])+ ',' + (e.evt.pageY - this.activePath.__initial__[1])
         },
         stopDrawing(e) {
             this.is_drawing=false;
-            this.configCircle.x = e.evt.pageX;
-            this.configCircle.y = e.evt.pageY;
             this.activePath.data += 'L' + (e.evt.pageX - this.activePath.__initial__[0])+ ',' + (e.evt.pageY - this.activePath.__initial__[1]) + 'z'
         },
         undo() {
