@@ -1,35 +1,35 @@
 <template>
     <div @keydown.ctrl.z="undo"
          @keydown.ctrl.r.prevent="redo">
-        <div id="msgs"></div>
         <vue-headful title="drawpg" description="drawing rpg platform"/>
-        <v-stage tabindex=0 :config="configKonva"
-                 @mousedown="startDrawing"
-                 @touchdown="startDrawing"
-                 @mousemove="keepDrawing"
-                 @touchmove="keepDrawing"
-                 @mouseup="stopDrawing">
-                 @touchup="stopDrawing">
-            <v-layer>
-                <v-path v-for="item in paths" :key="item.id" :config="item"></v-path>
-                <v-circle :config="configCircle"></v-circle>
-            </v-layer>
-        </v-stage>
-        <div class="top-right">
-            <swatches @input="setLineColor" v-model="pen.lineColor" colors="text-advanced" popover-to="left"></swatches>
-            <swatches @input="setFillColor" v-model="pen.fillColor" colors="text-advanced" popover-to="left"></swatches>
-        </div>
+        <fullscreen ref="fullscreen" @change="fullscreenChange">
+            <v-stage tabindex=0 :config="configKonva"
+                     @mousedown="startDrawing"
+                     @mousemove="keepDrawing"
+                     @mouseup="stopDrawing"
+                     @touchstart="startDrawing"
+                     @touchmove="keepDrawing"
+                     @touchend="stopDrawing">
+                <v-layer>
+                    <v-path v-for="item in paths" :key="item.id" :config="item"></v-path>
+                    <v-circle :config="configCircle"></v-circle>
+                </v-layer>
+            </v-stage>
+            <div class="top-right">
+                <swatches @input="setLineColor" v-model="pen.lineColor" colors="text-advanced" popover-to="left"></swatches>
+                <swatches @input="setFillColor" v-model="pen.fillColor" colors="text-advanced" popover-to="left"></swatches>
+            </div>
+            <button class="bottom-right" type="button" @click="toggleFullscreen">Fullscreen</button>
+        </fullscreen>
     </div>
 </template>
 
 <script>
 import { sendData, setOnMessageCallback } from './rtc.js'
 export default {
-
     data() {
         return {
-            message: '',
-            rtc: null,
+            fullscreen: false,
             activePath: undefined,
             remoteActivePaths: [],
             paths: [],
@@ -44,8 +44,8 @@ export default {
                 height: 200
             },
             configCircle: {
-                x: 100,
-                y: 100,
+                x: -10,
+                y: -10,
                 radius: 5,
                 fill: "#ffffff",
                 stroke: "#000000",
@@ -61,6 +61,13 @@ export default {
     mounted() {
     },
     methods: {
+        fullscreenChange(fullscreen) {
+            this.fullscreen = fullscreen;
+            this.handleResize();
+        },
+        toggleFullscreen() {
+            this.$refs['fullscreen'].toggle()
+        },
         onMessage( message) {
             if(message.start) {
                 var path = message.start
@@ -82,32 +89,44 @@ export default {
         setFillColor(color) {
             this.configCircle.fill = color;
         },
+        getPointerPos(ev) {
+            var E = ev;
+            if(E.touches !== undefined) {
+                E = E.touches[0];
+            }
+            var x = E.pageX;
+            var y = E.pageY;
+            return {x: x, y: y}
+        },
         startDrawing(e) {
             this.pen.is_drawing=true;
+            var pos = this.getPointerPos(e.evt);
             this.activePath = {
-                x: e.evt.pageX, y: e.evt.pageY,
+                x: pos.x, y: pos.y,
                 data: 'M0,0',
                 fill: this.pen.fillColor,
                 stroke: this.pen.lineColor,
-                __initial__: [e.evt.pageX, e.evt.pageY]
+                __initial__: pos, 
             };
             this.undos = [];
             this.paths.push(this.activePath);
             sendData({"start": this.activePath});
         },
         keepDrawing(e) {
-            this.configCircle.x = e.evt.pageX;
-            this.configCircle.y = e.evt.pageY;
+            var pos = this.getPointerPos(e.evt);
+            this.configCircle.x = pos.x;
+            this.configCircle.y = pos.y;
             if(!this.pen.is_drawing)
                 return;
-            var addition = 'L' + (e.evt.pageX - this.activePath.__initial__[0])+ ',' + (e.evt.pageY - this.activePath.__initial__[1])
+            var addition = 'L' + (pos.x - this.activePath.__initial__.x)+ ',' + (pos.y - this.activePath.__initial__.y)
             this.activePath.data += addition
-
             sendData({"move": addition});
         },
         stopDrawing(e) {
             this.pen.is_drawing=false;
-            var addition = 'L' + (e.evt.pageX - this.activePath.__initial__[0])+ ',' + (e.evt.pageY - this.activePath.__initial__[1]) + 'z'
+            var pos = this.getPointerPos(e.evt);
+            console.log("stop", pos);
+            var addition = 'L' + (pos.x - this.activePath.__initial__.x)+ ',' + (pos.y - this.activePath.__initial__.y) + 'z'
             this.activePath.data += addition
             sendData({"stop": addition});
         },
@@ -143,5 +162,15 @@ body {
 .top-right > * {
     display: inline-block;
     margin: 0.25rem;
+}
+
+.bottom-right {
+    position:absolute;
+    bottom: 0;
+    right: 0;
+}
+
+canvas {
+    background: white;
 }
 </style>

@@ -1,4 +1,7 @@
 module.exports = {
-  publicPath: "/drawpad/"
+  publicPath: 
+    process.env.NODE_ENV === 'production'
+    ? '/drawpad/'
+    : '/'
 }
 
