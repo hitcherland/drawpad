@@ -3,21 +3,20 @@
          @keydown.ctrl.r.prevent="redo">
         <vue-headful title="drawpg" description="drawing rpg platform"/>
         <fullscreen ref="fullscreen" @change="fullscreenChange">
-            <v-stage tabindex=0 :config="configKonva"
-                     @mousedown="startDrawing"
-                     @mousemove="keepDrawing"
-                     @mouseup="stopDrawing"
-                     @touchstart="startDrawing"
-                     @touchmove="keepDrawing"
-                     @touchend="stopDrawing">
+            <v-stage ref="canvas" tabindex=0 :config="configKonva"
+                     @mousedown="onPointerDown"
+                     @mousemove="onPointerDrag"
+                     @mouseup="onPointerUp"
+                     @touchstart="onPointerDown"
+                     @touchmove="onPointerDrag"
+                     @touchend="onPointerUp">
                 <v-layer>
                     <v-path v-for="item in paths" :key="item.id" :config="item"></v-path>
-                    <v-circle :config="configCircle"></v-circle>
                 </v-layer>
             </v-stage>
             <div class="top-right">
-                <swatches @input="setLineColor" v-model="pen.lineColor" colors="text-advanced" popover-to="left"></swatches>
-                <swatches @input="setFillColor" v-model="pen.fillColor" colors="text-advanced" popover-to="left"></swatches>
+                <swatches @input="setStrokeColor" v-model="configPalette.stroke" colors="text-advanced" popover-to="left"></swatches>
+                <swatches @input="setFillColor" v-model="configPalette.fill" colors="text-advanced" popover-to="left"></swatches>
             </div>
             <button class="bottom-right" type="button" @click="toggleFullscreen">Fullscreen</button>
         </fullscreen>
@@ -26,37 +25,35 @@
 
 <script>
 import { sendData, setOnMessageCallback } from './rtc.js'
+import { changeTool, onStartTool, onDragTool, onStopTool, setStroke, setFill, setScale } from './tools.js'
+
 export default {
     data() {
         return {
             fullscreen: false,
-            activePath: undefined,
-            remoteActivePaths: [],
             paths: [],
-            undos: [],
-            pen: {
-                is_drawing: false,
-                lineColor: '#000000',
-                fillColor: '#ffffff',
-            },
             configKonva: {
-                width: 200,
-                height: 200
+                width: 1024,
+                height: 600,
+                scaleX: 1,
+                scaleY: 1,
             },
-            configCircle: {
-                x: -10,
-                y: -10,
-                radius: 5,
-                fill: "#ffffff",
+            resolution: {
+                x: 1024,
+                y: 600,
+            },
+            configPalette: {
                 stroke: "#000000",
-                strokeWidth: 1
-            },
+                fill: null,
+            }
         };
     },
     created() {
         window.addEventListener('resize', this.handleResize)
         this.handleResize();
         setOnMessageCallback(this.onMessage);
+        setStroke(this.configPalette.stroke);
+        setFill(this.configPalette.fill);
     },
     mounted() {
     },
@@ -68,67 +65,57 @@ export default {
         toggleFullscreen() {
             this.$refs['fullscreen'].toggle()
         },
-        onMessage( message) {
-            if(message.start) {
-                var path = message.start
-                this.remoteActivePaths[0] = path;
-                this.paths.push(path);
-            } else if(message.move) {
-                this.remoteActivePaths[0].data += message.move;
-            } else if(message.stop) {
-                this.remoteActivePaths[0].data += message.stop;
+        onMessage(message) {
+            if(message.action == 'create') {
+                this.paths.push(message.path);
+            } else if( message.action == 'replace data') {
+                this.paths.filter(path =>
+                    path.uuid == message.uuid
+                ).forEach(path => path.data = message.data);
             }
         },
         handleResize() {
-            this.configKonva.width = window.innerWidth;
-            this.configKonva.height = window.innerHeight;
+            var aspectRatio = this.resolution.y / this.resolution.x;
+            var X = window.innerWidth
+            var Y = window.innerHeight
+
+            var scaleX = X / this.resolution.x;
+            var scaleY = Y / this.resolution.y;
+            var minScale = Math.min(scaleX, scaleY);
+            setScale(minScale, minScale);
+            this.configKonva.width = this.resolution.x * minScale;
+            this.configKonva.height = this.resolution.y * minScale;
+            this.configKonva.scaleX = minScale;
+            this.configKonva.scaleY = minScale;
         },
-        setLineColor(color) {
-            this.configCircle.stroke = color;
+        setStrokeColor(color) {
+            setStroke(color);
         },
         setFillColor(color) {
-            this.configCircle.fill = color;
+            setStroke(color);
         },
-        getPointerPos(ev) {
-            var E = ev;
-            if(E.touches !== undefined) {
-                E = E.touches[0];
+        onPointerDown(e) {
+            console.log("down")
+            var command = onStartTool(e);
+            console.log("command", command)
+            if(command !== undefined) {
+                this.onMessage(command);
+                sendData(command);
             }
-            var x = E.pageX;
-            var y = E.pageY;
-            return {x: x, y: y}
         },
-        startDrawing(e) {
-            this.pen.is_drawing=true;
-            var pos = this.getPointerPos(e.evt);
-            this.activePath = {
-                x: pos.x, y: pos.y,
-                data: 'M0,0',
-                fill: this.pen.fillColor,
-                stroke: this.pen.lineColor,
-                __initial__: pos, 
-            };
-            this.undos = [];
-            this.paths.push(this.activePath);
-            sendData({"start": this.activePath});
+        onPointerDrag(e) {
+            var command = onDragTool(e);
+            if(command !== undefined) {
+                this.onMessage(command);
+                sendData(command);
+            }
         },
-        keepDrawing(e) {
-            var pos = this.getPointerPos(e.evt);
-            this.configCircle.x = pos.x;
-            this.configCircle.y = pos.y;
-            if(!this.pen.is_drawing)
-                return;
-            var addition = 'L' + (pos.x - this.activePath.__initial__.x)+ ',' + (pos.y - this.activePath.__initial__.y)
-            this.activePath.data += addition
-            sendData({"move": addition});
-        },
-        stopDrawing(e) {
-            this.pen.is_drawing=false;
-            var pos = this.getPointerPos(e.evt);
-            console.log("stop", pos);
-            var addition = 'L' + (pos.x - this.activePath.__initial__.x)+ ',' + (pos.y - this.activePath.__initial__.y) + 'z'
-            this.activePath.data += addition
-            sendData({"stop": addition});
+        onPointerUp(e) {
+            var command = onStopTool(e);
+            if(command !== undefined) {
+                this.onMessage(command);
+                sendData(command);
+            }
         },
         undo() {
             if(this.paths.length > 0) {
@@ -147,14 +134,15 @@ export default {
 
 <style>
 body {
-    margin: 0
+    margin: 0;
+    background: black;
 }
 
 .top-right {
     position:absolute;
     top: 0;
     right: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(127, 127, 127, 0.8);
     padding: 0.5rem;
     border-radius: 0 0 0 0.5rem;
 }
@@ -171,6 +159,9 @@ body {
 }
 
 canvas {
-    background: white;
+    background: white !important;
+    width: 100%;
+    height: 100%;
 }
+
 </style>

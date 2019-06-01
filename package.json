@@ -20,6 +20,7 @@
     "vue-konva": "^2.0.6",
     "vue-socket.io": "^3.0.7",
     "vue-swatches": "^1.0.3",
+    "vue-uuid": "^1.1.1",
     "vue-webrtc": "^1.1.0",
     "wrtc": "^0.4.1"
   },

@@ -34,7 +34,7 @@ const ice_candidate = callback => {
     })
 }
 
-var onMessageCallback = (e) => {};
+var onMessageCallback = () => {};
 function setOnMessageCallback(callback) {
     onMessageCallback = callback
 }
