@@ -8,7 +8,7 @@ const rtc_config = {
 };
 
 import socketIO from 'socket.io-client'
-const socket = socketIO('ws://thisiscian.com:3001');
+const socket = socketIO('wss://hitcher.land:3001');
 
 const join = callback => {
     socket.on('join', (message) => {
